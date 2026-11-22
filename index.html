@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Concrete Defect Demo</title>
+  <meta name="description" content="Upload a photo of concrete: our own CNN and a fine-tuned ResNet-18 recognise crack, rust and spalling, directly in the browser.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap">
+      <p class="eyebrow">ETH Zurich · Scientific Machine and Deep Learning · Bikalpa Gautam</p>
+      <h1>Concrete defect recognition: live demo</h1>
+      <p class="lead">Upload a photo of a concrete surface. Two networks look at it side by side: our
+        <b class="c-own">own CNN</b> (1.6 M parameters) and a fine-tuned <b class="c-res">ResNet-18</b> (11.2 M).
+        Everything runs in this browser; the photo is not uploaded anywhere.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="controls" aria-label="Task">
+      <div class="segmented" role="radiogroup" aria-label="Which task">
+        <button type="button" role="radio" data-mode="real" aria-checked="true">Real bridge photos<span>crack · rust · spalling</span></button>
+        <button type="button" role="radio" data-mode="synthetic" aria-checked="false">Synthetic task<span>pristine · crack · rust · spalling</span></button>
+      </div>
+      <p id="mode-note" class="note"></p>
+    </section>
+
+    <section class="input" aria-label="Photo">
+      <label id="drop" class="drop" tabindex="0">
+        <input id="file" type="file" accept="image/*" hidden>
+        <span class="drop-title">Drop a photo here or <u>choose a file</u></span>
+        <span class="drop-sub">JPEG or PNG · you can also paste an image (Ctrl + V)</span>
+      </label>
+      <div>
+        <p class="small-head">Or try an example from the dacl10k test photos (chosen by label, not by result):</p>
+        <div id="examples" class="examples"></div>
+      </div>
+    </section>
+
+    <section id="result" class="result" hidden aria-live="polite">
+      <div class="photo-col">
+        <img id="photo" alt="The selected photo">
+        <div class="seen">
+          <canvas id="seen" width="224" height="224" aria-label="What the network sees"></canvas>
+          <p>What the network sees: the whole photo squeezed to 256 × 256, centre 224 × 224 (as in training).</p>
+        </div>
+        <p id="truth" class="truth" hidden></p>
+      </div>
+      <div id="cards" class="cards"></div>
+    </section>
+
+    <p id="status" class="status" role="status">Loading the networks …</p>
+
+    <details class="about">
+      <summary>How to read this, and the limits</summary>
+      <ul>
+        <li><b>Real bridge photos:</b> each label (crack, rust, spalling) gets its own probability; a photo can have several.
+          A label counts as <i>detected</i> when its probability passes the threshold tuned on the validation photos (the tick on each bar).</li>
+        <li><b>Synthetic task:</b> one of four classes; the probabilities add up to 100 %. These models never saw a real
+          photo, so on real photos they are unreliable (mAP ≈ 0.50, guessing ≈ 0.42): this is the domain gap.</li>
+        <li>Image-level labels only: the networks say <i>whether</i> a defect is in the photo, not <i>where</i>, and not the crack width or type.</li>
+        <li>224 × 224 pixels: thin cracks are the hardest class (crack AP 0.62 for the ResNet, 0.55 for the own CNN on 975 test photos).</li>
+        <li>A student research demo, not a tool for structural assessment.</li>
+      </ul>
+      <p class="small">Real photos: dacl10k (Flotzinger et al., WACV 2024), CC BY-NC 4.0. Synthetic training images: provided by the ETH course.
+        Runs with ONNX Runtime Web (MIT licence).</p>
+    </details>
+  </main>
+
+  <script src="ort/ort.wasm.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

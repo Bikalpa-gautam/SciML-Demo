@@ -1,0 +1,89 @@
+[
+ {
+  "file": "examples/validation_0532.jpg",
+  "source": "dacl10k_v2_validation_0532.jpg",
+  "labels": [
+   "crack"
+  ],
+  "all_dacl10k_labels": [
+   "Crack",
+   "PEquipment",
+   "Wetspot"
+  ]
+ },
+ {
+  "file": "examples/validation_0791.jpg",
+  "source": "dacl10k_v2_validation_0791.jpg",
+  "labels": [
+   "crack"
+  ],
+  "all_dacl10k_labels": [
+   "Crack"
+  ]
+ },
+ {
+  "file": "examples/validation_0793.jpg",
+  "source": "dacl10k_v2_validation_0793.jpg",
+  "labels": [
+   "rust"
+  ],
+  "all_dacl10k_labels": [
+   "Efflorescence",
+   "ExposedRebars",
+   "Rust"
+  ]
+ },
+ {
+  "file": "examples/validation_0138.jpg",
+  "source": "dacl10k_v2_validation_0138.jpg",
+  "labels": [
+   "rust"
+  ],
+  "all_dacl10k_labels": [
+   "Graffiti",
+   "Rust"
+  ]
+ },
+ {
+  "file": "examples/validation_0332.jpg",
+  "source": "dacl10k_v2_validation_0332.jpg",
+  "labels": [
+   "spalling"
+  ],
+  "all_dacl10k_labels": [
+   "Cavity",
+   "Graffiti",
+   "JTape",
+   "Spalling"
+  ]
+ },
+ {
+  "file": "examples/validation_0632.jpg",
+  "source": "dacl10k_v2_validation_0632.jpg",
+  "labels": [
+   "rust",
+   "spalling"
+  ],
+  "all_dacl10k_labels": [
+   "Rust",
+   "Spalling"
+  ]
+ },
+ {
+  "file": "examples/validation_0610.jpg",
+  "source": "dacl10k_v2_validation_0610.jpg",
+  "labels": [],
+  "all_dacl10k_labels": [
+   "PEquipment"
+  ]
+ },
+ {
+  "file": "examples/validation_0511.jpg",
+  "source": "dacl10k_v2_validation_0511.jpg",
+  "labels": [],
+  "all_dacl10k_labels": [
+   "WConccor",
+   "Weathering"
+  ]
+ }
+]

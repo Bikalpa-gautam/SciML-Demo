@@ -1,0 +1,20 @@
+# Netlify settings: a plain static site, no build step.
+[build]
+  publish = "."
+
+# Correct file types for the WebAssembly engine of ONNX Runtime Web
+[[headers]]
+  for = "/ort/*.wasm"
+  [headers.values]
+    Content-Type = "application/wasm"
+
+[[headers]]
+  for = "/ort/*.mjs"
+  [headers.values]
+    Content-Type = "text/javascript; charset=utf-8"
+
+# The network files are large and rarely change: let browsers cache them for a week
+[[headers]]
+  for = "/models/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
