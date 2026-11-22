@@ -52,6 +52,7 @@ figcaption { margin-top: 10px; font-size: 15px; }
 .fill { display: block; height: 100%; background: var(--blue); }
 .tick { position: absolute; top: -3px; width: 1px; height: 14px; background: var(--ink); }
 .pct { text-align: right; font-variant-numeric: tabular-nums; }
+.card.pending .wait { margin: 0; font-size: 15px; font-variant-numeric: tabular-nums; }
 
 .status { min-height: 1.5em; margin: 20px 0; }
 .status.error { color: #b00020; }

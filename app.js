@@ -129,15 +129,79 @@ async function prepare(blob) {
 }
 
 // ---------------------------------------------------------------- 2. running the networks
-async function getSession(file) {
-  if (!sessions[file]) sessions[file] = ort.InferenceSession.create(file, { executionProviders: ["wasm"] });
+// The networks are big (ResNet-18 45 MB, own CNN 6.5 MB). On a phone connection the download can take
+// a minute, so it is done here with a progress read-out instead of silently inside ONNX Runtime.
+const progress = {};               // file -> { loaded, total } in bytes
+const MB = (b) => (b / 1e6).toFixed(0);
+
+async function download(file) {
+  const resp = await fetch(file);
+  if (!resp.ok) throw new Error(`${file}: HTTP ${resp.status}`);
+  const total = Number(resp.headers.get("content-length")) || 0;
+  progress[file] = { loaded: 0, total };
+  if (!resp.body) {                // very old browsers: no streaming, no progress
+    const buf = new Uint8Array(await resp.arrayBuffer());
+    progress[file].loaded = buf.length;
+    return buf;
+  }
+  const reader = resp.body.getReader(), chunks = [];
+  let loaded = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    loaded += value.length;
+    progress[file].loaded = loaded;
+    showProgress();
+  }
+  const buf = new Uint8Array(loaded);
+  let o = 0;
+  for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return buf;
+}
+
+function getSession(file) {
+  if (!sessions[file]) {
+    sessions[file] = download(file)
+      .then((buf) => ort.InferenceSession.create(buf, { executionProviders: ["wasm"] }))
+      .catch((err) => { delete sessions[file]; throw err; });   // a failed download can be retried
+  }
   return sessions[file];
+}
+
+let engine = Promise.resolve();    // one network at a time in the single-threaded engine
+function exclusive(fn) {
+  const p = engine.then(fn, fn);
+  engine = p.catch(() => {});
+  return p;
 }
 
 async function predict(model, tensor) {
   const session = await getSession(model.file);
-  const out = await session.run({ [session.inputNames[0]]: tensor });
+  const out = await exclusive(() => session.run({ [session.inputNames[0]]: tensor }));
   return { probs: Array.from(out[session.outputNames[0]].data) };   // the .onnx already outputs probabilities
+}
+
+function progressText(files) {     // e.g. "12 / 51 MB", or "" when everything is downloaded
+  let loaded = 0, total = 0;
+  for (const f of files) {
+    const p = progress[f];
+    if (!p) return null;           // not started yet
+    loaded += p.loaded; total += p.total || p.loaded;
+  }
+  return loaded < total ? `${MB(loaded)} / ${MB(total)} MB` : "";
+}
+
+function showProgress() {
+  document.querySelectorAll(".card.pending").forEach((el) => {
+    const t = progressText([el.dataset.file]);
+    el.querySelector(".wait").textContent = t ? `Downloading network … ${t}` : "Analysing …";
+  });
+  const s = $("status");
+  if (s.dataset.loading) {
+    const t = progressText(MODES[mode].models.map((m) => m.file));
+    if (t) s.textContent = `Loading the networks … ${t}`;
+  }
 }
 
 // ---------------------------------------------------------------- 3. showing the result
@@ -167,20 +231,34 @@ function card(model, cfg, res) {
   return el;
 }
 
+function placeholder(model) {     // shown until this network's result is ready
+  const el = document.createElement("article");
+  el.className = "card pending";
+  el.dataset.file = model.file;
+  el.innerHTML = `<h2>${model.name}</h2><p class="wait">Analysing …</p>`;
+  return el;
+}
+
+let runId = 0;                     // a newer photo or tab replaces an older, still running analysis
+
 async function run() {
   if (!current) return;
-  const cfg = MODES[mode];
-  setStatus("Analysing …");
+  const id = ++runId, cfg = MODES[mode], tensor = current.tensor;
   const cards = $("cards");
   cards.innerHTML = "";
-  try {
-    for (const model of cfg.models) {
-      const res = await predict(model, current.tensor);
-      cards.appendChild(card(model, cfg, res));
-    }
-    setStatus("");
-  } catch (err) {
-    setStatus("Something went wrong: " + err.message, true);
+  const slots = cfg.models.map((m) => cards.appendChild(placeholder(m)));
+  setStatus("");
+  showProgress();
+  // each network shows its result as soon as it is ready (the small own CNN usually first)
+  const results = await Promise.allSettled(cfg.models.map(async (model, k) => {
+    const res = await predict(model, tensor);
+    if (id === runId) slots[k].replaceWith(card(model, cfg, res));
+  }));
+  if (id !== runId) return;
+  const failed = results.find((r) => r.status === "rejected");
+  if (failed) {
+    slots.forEach((el) => el.classList.contains("pending") && el.querySelector(".wait").replaceChildren("—"));
+    setStatus("Something went wrong: " + failed.reason.message + ". Choose the photo again to retry.", true);
   }
 }
 
@@ -194,7 +272,8 @@ async function useImage(blob, truth) {
   } else {
     t.hidden = true;
   }
-  setStatus("Analysing …");
+  setStatus("");
+  $("cards").innerHTML = "";
   current = { tensor: await prepare(blob), truth };
   await run();
 }
@@ -203,6 +282,7 @@ function setStatus(text, error = false) {
   const s = $("status");
   s.textContent = text;
   s.classList.toggle("error", error);
+  delete s.dataset.loading;        // only the start-up message shows the download progress
 }
 
 function setMode(m) {
@@ -246,12 +326,13 @@ async function init() {
     box.appendChild(b);
   });
 
+  $("status").dataset.loading = "1";
   setMode("real");
   try {
     await Promise.all(MODES.real.models.map((m) => getSession(m.file)));
-    setStatus("");
+    if ($("status").dataset.loading) setStatus("");    // do not wipe a message that came later
   } catch (err) {
-    setStatus("The networks could not be loaded (" + err.message + "). Offline: start the page with start_demo.bat.", true);
+    if (!current) setStatus("The networks could not be loaded (" + err.message + "). Offline: start the page with start_demo.bat.", true);
   }
   const params = new URLSearchParams(location.search);
   if (params.has("mode")) setMode(params.get("mode") === "synthetic" ? "synthetic" : "real");
