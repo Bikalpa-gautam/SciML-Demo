@@ -17,7 +17,7 @@ body {
 h1 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.01em; }
 .top p { margin: 4px 0 0; font-size: 15px; }
 
-.tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--line); margin: 24px 0; }
+.tabs { display: flex; flex-wrap: wrap; column-gap: 28px; border-bottom: 1px solid var(--line); margin: 24px 0; }
 .tabs button {
   border: 0; background: none; padding: 10px 0; margin-bottom: -1px; cursor: pointer;
   font: inherit; color: var(--ink); border-bottom: 2px solid transparent;

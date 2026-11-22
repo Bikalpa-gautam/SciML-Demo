@@ -20,8 +20,8 @@ Useful addresses:
 
 | Task | Networks | Output |
 |---|---|---|
-| Real bridge photos (default) | ResNet-18 (ImageNet → synthetic → real, test mAP 0.746) and own CNN (synthetic → real, mAP 0.704) | a probability per label. A label is *detected* when it passes the threshold tuned on real_val (tick on the bar): ResNet 0.35 / 0.45 / 0.30, own CNN 0.25 / 0.35 / 0.30 for crack / rust / spalling |
-| Synthetic images | ResNet-18 (synthetic test accuracy 0.866) and own CNN (0.853), trained only on synthetic images | one of pristine / crack / rust / spalling |
+| Trained on real photos (default) | ResNet-18 (ImageNet → synthetic → real, test mAP 0.746) and own CNN (synthetic → real, mAP 0.704) | a probability per label. A label is *detected* when it passes the threshold tuned on real_val (tick on the bar): ResNet 0.35 / 0.45 / 0.30, own CNN 0.25 / 0.35 / 0.30 for crack / rust / spalling |
+| Trained on synthetic images | ResNet-18 (synthetic test accuracy 0.866) and own CNN (0.853), trained only on synthetic images | one of pristine / crack / rust / spalling |
 
 The 8 example photos are dacl10k **test** photos, chosen by their annotated label with a fixed random seed,
 **not** by whether the networks get them right. The page shows the annotation under the photo.
@@ -33,7 +33,7 @@ then the centre 224 × 224 is taken.
 
 - Click the examples. Some are right and some are wrong (for example, the "rust + spalling" photo gets "crack + spalling").
   That is honest and leads to the discussion of the scores.
-- Switch to **Synthetic images** and click a real photo. Networks trained only on synthetic images are often wrong
+- Switch to **Trained on synthetic images** and click a real photo. Networks trained only on synthetic images are often wrong
   on real photos: this is the domain gap.
 - Upload a phone photo of a wall or bridge (or paste one with Ctrl + V).
 
