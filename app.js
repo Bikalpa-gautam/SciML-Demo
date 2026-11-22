@@ -5,7 +5,7 @@
       (whole photo squeezed to 256 x 256 with bicubic resizing like Pillow, then the centre 224 x 224,
        RGB values / 255; the ImageNet normalisation is inside the .onnx file).
    2. Both networks of the chosen task run on it (own CNN and ResNet-18).
-   3. The probabilities are shown as bars.
+   3. The probabilities are shown as bars (the tick on a bar = decision threshold tuned on validation photos).
 */
 "use strict";
 
@@ -17,27 +17,19 @@ const MODES = {
   real: {
     classes: ["crack", "rust", "spalling"],
     kind: "sigmoid",               // one independent probability per label
-    note: "Networks fine-tuned on the real dacl10k bridge photos. Each label gets its own probability; " +
-          "a label is detected when it passes the threshold (tick) tuned on the validation photos.",
     models: [
-      { name: "ResNet-18", colour: "--resnet", file: "models/resnet18_real.onnx",
-        thresholds: [0.35, 0.45, 0.30],
-        info: "ImageNet → synthetic → real photos · real test mAP 0.746" },
-      { name: "Own CNN", colour: "--own", file: "models/own_cnn_real.onnx",
-        thresholds: [0.25, 0.35, 0.30],
-        info: "from scratch: synthetic → real photos · real test mAP 0.704" },
+      // real test mAP 0.746; thresholds tuned on real_val (crack, rust, spalling)
+      { name: "ResNet-18", file: "models/resnet18_real.onnx", thresholds: [0.35, 0.45, 0.30] },
+      // real test mAP 0.704
+      { name: "Own CNN", file: "models/own_cnn_real.onnx", thresholds: [0.25, 0.35, 0.30] },
     ],
   },
   synthetic: {
     classes: ["pristine", "crack", "rust", "spalling"],
     kind: "softmax",               // exactly one class, probabilities add up to 1
-    note: "Networks trained only on the synthetic images (4 classes). Try a real photo: they were never " +
-          "trained on real photos, so they are often wrong there (the domain gap).",
     models: [
-      { name: "ResNet-18", colour: "--resnet", file: "models/resnet18_finetuned_synthetic.onnx",
-        info: "ImageNet → synthetic · synthetic test accuracy 0.866" },
-      { name: "Own CNN", colour: "--own", file: "models/own_cnn_synthetic.onnx",
-        info: "from scratch on synthetic images · synthetic test accuracy 0.853" },
+      { name: "ResNet-18", file: "models/resnet18_finetuned_synthetic.onnx" },   // synthetic test accuracy 0.866
+      { name: "Own CNN", file: "models/own_cnn_synthetic.onnx" },                // synthetic test accuracy 0.853
     ],
   },
 };
@@ -125,18 +117,14 @@ async function prepare(blob) {
   bitmap.close();
   const rgb256 = resizeBicubic(ctx.getImageData(0, 0, dw, dh).data, dw, dh, 256, 256);
 
-  // centre 224 x 224 crop -> float32, channels first, values 0..1; also draw it for the preview
+  // centre 224 x 224 crop -> float32, channels first, values 0..1
   const S = 224, off = 16, data = new Float32Array(3 * S * S);
-  const preview = $("seen").getContext("2d");
-  const img = preview.createImageData(S, S);
   for (let y = 0; y < S; y++) {
     for (let x = 0; x < S; x++) {
       const p = ((y + off) * 256 + (x + off)) * 3, i = y * S + x;
       data[i] = rgb256[p] / 255; data[S * S + i] = rgb256[p + 1] / 255; data[2 * S * S + i] = rgb256[p + 2] / 255;
-      img.data[i * 4] = rgb256[p]; img.data[i * 4 + 1] = rgb256[p + 1]; img.data[i * 4 + 2] = rgb256[p + 2]; img.data[i * 4 + 3] = 255;
     }
   }
-  preview.putImageData(img, 0, 0);
   return new ort.Tensor("float32", data, [1, 3, S, S]);
 }
 
@@ -148,45 +136,41 @@ async function getSession(file) {
 
 async function predict(model, tensor) {
   const session = await getSession(model.file);
-  const t0 = performance.now();
   const out = await session.run({ [session.inputNames[0]]: tensor });
-  const probs = Array.from(out[session.outputNames[0]].data);   // the .onnx already outputs probabilities
-  return { probs, ms: performance.now() - t0 };
+  return { probs: Array.from(out[session.outputNames[0]].data) };   // the .onnx already outputs probabilities
 }
 
 // ---------------------------------------------------------------- 3. showing the result
+const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+
 function card(model, cfg, res) {
-  const colour = `var(${model.colour})`;
   const el = document.createElement("article");
   el.className = "card";
+  const top = res.probs.indexOf(Math.max(...res.probs));
   let verdict;
   if (cfg.kind === "sigmoid") {
     const hits = cfg.classes.filter((c, k) => res.probs[k] >= model.thresholds[k]);
-    verdict = hits.length ? `<p class="verdict" style="color:${colour}">Detected: ${hits.join(" + ")}</p>`
-                          : `<p class="verdict none">No crack, rust or spalling detected</p>`;
+    verdict = hits.length ? `<p class="verdict">${cap(hits.join(" + "))}</p>`
+                          : `<p class="verdict none">No defect detected</p>`;
   } else {
-    const k = res.probs.indexOf(Math.max(...res.probs));
-    verdict = `<p class="verdict" style="color:${colour}">${cfg.classes[k]} (${Math.round(res.probs[k] * 100)} %)</p>`;
+    verdict = `<p class="verdict">${cap(cfg.classes[top])}</p>`;
   }
-  const top = res.probs.indexOf(Math.max(...res.probs));
   const rows = cfg.classes.map((c, k) => {
     const p = res.probs[k];
     const hit = cfg.kind === "sigmoid" ? p >= model.thresholds[k] : k === top;
-    const tick = cfg.kind === "sigmoid" ? `<span class="tick" style="left:calc(${model.thresholds[k] * 100}% - 1px)" title="threshold ${model.thresholds[k]}"></span>` : "";
-    return `<div class="row${hit ? " hit" : ""}"><span class="name">${c}</span>
-      <span class="bar"><span class="fill" style="width:${(p * 100).toFixed(1)}%;background:${colour}"></span>${tick}</span>
-      <span class="pct">${(p * 100).toFixed(0)} %</span></div>`;
+    const tick = cfg.kind === "sigmoid" ? `<span class="tick" style="left:${model.thresholds[k] * 100}%"></span>` : "";
+    return `<div class="row${hit ? " hit" : ""}"><span class="name">${c}</span>` +
+      `<span class="bar"><span class="fill" style="width:${(p * 100).toFixed(1)}%"></span>${tick}</span>` +
+      `<span class="pct">${(p * 100).toFixed(0)} %</span></div>`;
   }).join("");
-  el.innerHTML = `<div class="card-head"><h2 style="color:${colour}">${model.name}</h2>
-      <span class="meta">${res.ms.toFixed(0)} ms in this browser</span></div>
-    ${verdict}${rows}<p class="foot">${model.info}</p>`;
+  el.innerHTML = `<h2>${model.name}</h2>${verdict}${rows}`;
   return el;
 }
 
 async function run() {
   if (!current) return;
   const cfg = MODES[mode];
-  setStatus("Running both networks …");
+  setStatus("Analysing …");
   const cards = $("cards");
   cards.innerHTML = "";
   try {
@@ -205,14 +189,12 @@ async function useImage(blob, truth) {
   $("photo").src = URL.createObjectURL(blob);
   const t = $("truth");
   if (truth) {
-    const main = truth.labels.length ? truth.labels.join(" + ") : "no crack, rust or spalling";
-    const other = truth.all_dacl10k_labels.filter((l) => !["Crack", "ACrack", "Rust", "Spalling"].includes(l));
-    t.innerHTML = `<b>dacl10k annotation:</b> ${main}` + (other.length ? ` <span class="other">(also annotated: ${other.join(", ")})</span>` : "");
+    t.textContent = "Annotation: " + (truth.labels.length ? truth.labels.join(" + ") : "no defect");
     t.hidden = false;
   } else {
     t.hidden = true;
   }
-  setStatus("Preparing the photo …");
+  setStatus("Analysing …");
   current = { tensor: await prepare(blob), truth };
   await run();
 }
@@ -225,17 +207,17 @@ function setStatus(text, error = false) {
 
 function setMode(m) {
   mode = m;
-  document.querySelectorAll(".segmented button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === m)));
-  $("mode-note").textContent = MODES[m].note;
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.mode === m)));
   MODES[m].models.forEach((model) => getSession(model.file));   // start loading in the background
   run();
 }
 
 // ---------------------------------------------------------------- page set-up
 async function init() {
-  document.querySelectorAll(".segmented button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
   const fileInput = $("file"), drop = $("drop");
   fileInput.addEventListener("change", () => { if (fileInput.files[0]) { clearActive(); useImage(fileInput.files[0], null); } });
+  drop.tabIndex = 0;
   drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
   ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
   ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove("over")));
@@ -255,7 +237,8 @@ async function init() {
     const b = document.createElement("button");
     b.type = "button";
     const label = ex.labels.length ? ex.labels.join(" + ") : "none";
-    b.innerHTML = `<img src="${ex.file}" alt="Example photo, annotated: ${label}" loading="lazy"><span class="tag">${label}</span>`;
+    b.innerHTML = `<img src="${ex.file}" alt="Example: ${label}">`;
+    b.title = "Example: " + label;
     b.addEventListener("click", async () => {
       clearActive(); b.classList.add("active");
       useImage(await (await fetch(ex.file)).blob(), ex);
@@ -266,10 +249,9 @@ async function init() {
   setMode("real");
   try {
     await Promise.all(MODES.real.models.map((m) => getSession(m.file)));
-    setStatus("Ready. Choose a photo or an example.");
+    setStatus("");
   } catch (err) {
-    setStatus("The networks could not be loaded (" + err.message + "). Start the page with start_demo.bat, " +
-              "not by double-clicking index.html.", true);
+    setStatus("The networks could not be loaded (" + err.message + "). Offline: start the page with start_demo.bat.", true);
   }
   const params = new URLSearchParams(location.search);
   if (params.has("mode")) setMode(params.get("mode") === "synthetic" ? "synthetic" : "real");
