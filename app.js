@@ -189,7 +189,7 @@ async function useImage(blob, truth) {
   $("photo").src = URL.createObjectURL(blob);
   const t = $("truth");
   if (truth) {
-    t.textContent = "Annotation: " + (truth.labels.length ? truth.labels.join(" + ") : "no defect");
+    t.textContent = "Expert label: " + (truth.labels.length ? truth.labels.join(" + ") : "no defect");   // dacl10k annotation = correct answer
     t.hidden = false;
   } else {
     t.hidden = true;

@@ -24,7 +24,7 @@ Useful addresses:
 | Trained on synthetic images | ResNet-18 (synthetic test accuracy 0.866) and own CNN (0.853), trained only on synthetic images | one of pristine / crack / rust / spalling |
 
 The 8 example photos are dacl10k **test** photos, chosen by their annotated label with a fixed random seed,
-**not** by whether the networks get them right. The page shows the annotation under the photo.
+**not** by whether the networks get them right. The page shows this expert label (the correct answer) under the photo.
 
 The photo is prepared exactly as in training: the whole photo is squeezed to 256 × 256 (bicubic, like Pillow),
 then the centre 224 × 224 is taken.
